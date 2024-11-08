@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Relawan IQBAL DINDA</title>
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+
+    <!-- Custom CSS -->
+    <style>
+        html, body, #map {
+            height: 100%;
+            margin: 0;
+            padding: 0;
+        }
+        .leaflet-popup-content > table img {
+            max-width: 100%;
+            height: auto;
+        }
+    </style>
+</head>
+<body>
+    <div id="map"></div>
+
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+    <!-- Sanity Client -->
+    <script type="module">
+        import { createClient } from 'https://cdn.skypack.dev/@sanity/client';
+
+        // Initialize Sanity client
+        const client = createClient({
+            projectId: 'ln9ujpru', // Replace with your Sanity project ID
+            dataset: 'production', // Replace with your Sanity dataset name
+            useCdn: true, // Use the Content Delivery Network (CDN) for cached responses
+            apiVersion: '2023-05-03' // Specify the API version
+        });
+
+        // Function to fetch data from Sanity
+        async function fetchData() {
+            try {
+                const query = '*[_type == "relawan-iqbaldinda"]{_id, alamatTujuan, namaYangDikunjungi, keteranganKunjungan, fotoEksternal, "foto": foto.asset->url, geometry, user-> {name}}';
+                const data = await client.fetch(query);
+                console.log('Fetched data kunjungan:', data);
+                return data; // Return the fetched data
+            } catch (error) {
+                console.error('Error fetching data kunjungan:', error);
+                return null; // Handle errors gracefully
+            }
+        }
+
+        // Function to initialize Leaflet map with fetched data
+        async function initializeMap() {
+            const data = await fetchData(); // Fetch data asynchronously
+
+            if (!data) {
+                console.error('Failed to fetch data');
+                return;
+            }
+
+            // Initialize Leaflet map
+            var map = L.map('map').setView([-8.686231, 116.106701], 13); // Set initial map view
+
+            // Add OpenStreetMap as base layer
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+            }).addTo(map);
+
+            // Prepare GeoJSON features array
+            const geoJsonFeatures = data.map(item => ({
+                type: 'Feature',
+                geometry: {
+                    type: 'Point',
+                    coordinates: [item.geometry.lng, item.geometry.lat]
+                },
+                properties: {
+                    _id: item._id,
+                    alamatTujuan: item.alamatTujuan,
+                    namaYangDikunjungi: item.namaYangDikunjungi,
+                    keteranganKunjungan: item.keteranganKunjungan,
+                    foto: item.fotoEksternal,
+                    user: item.user ? item.user.name : ''
+                }
+            }));
+
+            // Create GeoJSON layer and add it to map
+            L.geoJSON({
+                type: 'FeatureCollection',
+                features: geoJsonFeatures
+            }, {
+                onEachFeature: onEachFeature,
+                pointToLayer: function (feature, latlng) {
+                    return L.circleMarker(latlng, styleFeature(feature));
+                }
+            }).addTo(map);
+
+            // Fit map to bounds of GeoJSON data
+            map.fitBounds(L.geoJSON({
+                type: 'FeatureCollection',
+                features: geoJsonFeatures
+            }).getBounds());
+        }
+
+        // Function to create popups for each feature
+        function onEachFeature(feature, layer) {
+            if (feature.properties) {
+                var popupContent = `<table style="width: 100%; border-collapse: collapse; text-align: left;">
+                    <tr>
+                        <th style="padding: 8px; border: 1px solid #ddd;">Nama Relawan</th>
+                        <td style="padding: 8px; border: 1px solid #ddd;">${feature.properties.user}</td>
+                    </tr>
+                    <tr>
+                        <th style="padding: 8px; border: 1px solid #ddd;">Alamat Tujuan</th>
+                        <td style="padding: 8px; border: 1px solid #ddd;">${feature.properties.alamatTujuan}</td>
+                    </tr>
+                    <tr>
+                        <th style="padding: 8px; border: 1px solid #ddd;">Nama yang Dikunjungi</th>
+                        <td style="padding: 8px; border: 1px solid #ddd;">${feature.properties.namaYangDikunjungi}</td>
+                    </tr>
+                    <tr>
+                        <th style="padding: 8px; border: 1px solid #ddd;">Keterangan Kunjungan</th>
+                        <td style="padding: 8px; border: 1px solid #ddd;">${feature.properties.keteranganKunjungan}</td>
+                    </tr>
+                    <tr>
+                        <th style="padding: 8px; border: 1px solid #ddd;">Foto</th>
+                        <td style="padding: 8px; border: 1px solid #ddd;">${feature.properties.foto ? '<img src="' + feature.properties.foto + '" style="max-width: 100%; height: auto;">' : ''}</td>
+                    </tr>
+                </table>`;
+                layer.bindPopup(popupContent);
+            }
+        }
+
+        // Function to style features
+        function styleFeature(feature) {
+            return {
+                radius: 8,
+                fillColor: '#ff7800',
+                color: '#000',
+                weight: 1,
+                opacity: 1,
+                fillOpacity: 0.8
+            };
+        }
+
+        // Call initializeMap function when DOM is fully loaded
+        document.addEventListener('DOMContentLoaded', () => {
+            initializeMap();
+        });
+    </script>
+</body>
+</html>
